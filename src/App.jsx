@@ -83,10 +83,18 @@ export default function App() {
     try {
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
+        reader.onload = () => {
+          const result = reader.result;
+          const base64Data = result.split(',')[1];
+          resolve(base64Data);
+        };
+        reader.onerror = () => reject(new Error('檔案讀取失敗'));
         reader.readAsDataURL(file);
       });
+
+      if (!base64) {
+        throw new Error('無法讀取檔案內容');
+      }
       
       const response = await fetch('/.netlify/functions/generate-quotes', {
         method: 'POST',
@@ -97,16 +105,33 @@ export default function App() {
         })
       });
       
-      const data = await response.json();
+      const text = await response.text();
+      
+      if (!text) {
+        throw new Error('伺服器沒有回應');
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Response was:', text);
+        throw new Error('伺服器回應格式錯誤');
+      }
       
       if (data.error) {
         throw new Error(data.error);
       }
       
-      setQuotes(data.quotes || []);
+      if (!data.quotes || data.quotes.length === 0) {
+        throw new Error('沒有產生任何金句');
+      }
+      
+      setQuotes(data.quotes);
       
     } catch (err) {
-      setError('生成失敗：' + err.message);
+      console.error('Generate error:', err);
+      setError(err.message || '生成失敗，請稍後再試');
     } finally {
       setLoading(false);
     }
@@ -120,13 +145,14 @@ export default function App() {
     canvas.width = 1080;
     canvas.height = 1080;
     
+    // 品牌色系金句卡片
     const gradients = [
-      ['#1a1a2e', '#16213e'],
-      ['#0f0f0f', '#1a1a1a'],
-      ['#1a3a2e', '#0f2e1f'],
-      ['#1a2a3e', '#0f1f3e'],
-      ['#2a1a3e', '#1f0f3e'],
-      ['#3e1a2a', '#2e0f1a'],
+      ['#2d5a3d', '#1a3d2a'], // 深綠
+      ['#5a4d2d', '#3d3320'], // 深金
+      ['#3d5a4d', '#2a3d35'], // 藍綠
+      ['#4d5a2d', '#353d20'], // 橄欖綠
+      ['#5a3d2d', '#3d2820'], // 棕金
+      ['#2d4a5a', '#1a3540'], // 墨綠藍
     ];
     
     const colors = gradients[index % gradients.length];
@@ -137,20 +163,25 @@ export default function App() {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // 裝飾
-    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    // 裝飾圓形
+    ctx.fillStyle = 'rgba(212, 175, 55, 0.08)';
     ctx.beginPath();
-    ctx.arc(canvas.width * 0.8, canvas.height * 0.2, 300, 0, Math.PI * 2);
+    ctx.arc(canvas.width * 0.85, canvas.height * 0.15, 250, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = 'rgba(245, 240, 230, 0.05)';
+    ctx.beginPath();
+    ctx.arc(canvas.width * 0.1, canvas.height * 0.9, 200, 0, Math.PI * 2);
     ctx.fill();
     
     // 引號
     ctx.font = '240px "Noto Serif TC", Georgia, serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillStyle = 'rgba(212, 175, 55, 0.15)';
     ctx.fillText('"', 60, 220);
     
     // 金句文字
     ctx.font = '52px "Noto Serif TC", serif';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#f5f0e6';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     
@@ -175,7 +206,7 @@ export default function App() {
     
     // 浮水印
     ctx.font = '28px "Noto Sans TC", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillStyle = 'rgba(212, 175, 55, 0.6)';
     ctx.textAlign = 'right';
     ctx.fillText('陳沛孺', canvas.width - 80, canvas.height - 80);
     
@@ -187,9 +218,12 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* 背景 */}
-      <div className="bg-gradient"></div>
-      <div className="bg-blur"></div>
+      {/* 背景裝飾 */}
+      <div className="bg-shapes">
+        <div className="shape shape-1"></div>
+        <div className="shape shape-2"></div>
+        <div className="shape shape-3"></div>
+      </div>
       
       {/* 隱藏的 Canvas */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -197,37 +231,44 @@ export default function App() {
       {/* Hero Section */}
       <section className="hero">
         <div className="hero-content">
-          <p className="hero-label">AI-Powered Tool</p>
-          <h1>課程金句產生器</h1>
+          <div className="hero-badge">AI 小工具</div>
+          <h1>課程金句<br/>產生器</h1>
           <p className="hero-desc">
-            上傳你的簡報，讓 AI 在 30 秒內<br />
-            為你的課程提煉出令人印象深刻的金句
+            上傳你的簡報，讓 AI 幫你提煉出<br/>
+            讓學員一秒記住的課程金句
           </p>
           <button className="hero-cta" onClick={scrollToUpload}>
-            開始使用
+            立即試用
           </button>
+        </div>
+        <div className="hero-visual">
+          <div className="card-stack">
+            <div className="demo-card demo-card-1">"學會這個，省下三年摸索"</div>
+            <div className="demo-card demo-card-2">"真正的效率是不做白工"</div>
+            <div className="demo-card demo-card-3">"知道方法的人，不怕起步晚"</div>
+          </div>
         </div>
       </section>
 
       {/* How it works */}
       <section className="how-it-works">
         <div className="container">
-          <h2>三步驟，輕鬆產出課程金句</h2>
+          <h2>怎麼使用？</h2>
           <div className="steps-grid">
             <StepCard 
               number="1"
               title="上傳簡報"
-              description="將你的課程簡報截圖或 PDF 上傳，支援 PNG、JPG、PDF 格式"
+              description="把你的課程簡報截圖或存成 PDF 上傳"
             />
             <StepCard 
               number="2"
-              title="AI 分析"
-              description="Gemini AI 會分析你的內容，抓取核心概念與價值主張"
+              title="等 AI 分析"
+              description="Gemini 會讀懂你的內容，抓出核心價值"
             />
             <StepCard 
               number="3"
-              title="下載金句"
-              description="獲得 6 句精煉的課程金句，可直接下載為社群圖卡"
+              title="下載金句圖"
+              description="一鍵下載，直接發到社群或放進簡報"
             />
           </div>
         </div>
@@ -238,7 +279,7 @@ export default function App() {
         <div className="container">
           <div className="upload-card">
             <h2>上傳你的簡報</h2>
-            <p className="upload-subtitle">支援 PNG、JPG、PDF，建議上傳課程大綱或封面頁</p>
+            <p className="upload-subtitle">支援 PNG、JPG、PDF</p>
             
             <div
               className={`upload-zone ${dragOver ? 'drag-over' : ''} ${file ? 'has-file' : ''}`}
@@ -259,20 +300,20 @@ export default function App() {
                 <div className="preview">
                   <img src={preview} alt="預覽" />
                   <p className="file-name">{file.name}</p>
-                  <p className="change-hint">點擊更換檔案</p>
+                  <p className="change-hint">點擊更換</p>
                 </div>
               ) : file ? (
                 <div className="preview">
-                  <div className="pdf-icon">PDF</div>
+                  <div className="pdf-badge">PDF</div>
                   <p className="file-name">{file.name}</p>
-                  <p className="change-hint">點擊更換檔案</p>
+                  <p className="change-hint">點擊更換</p>
                 </div>
               ) : (
                 <div className="upload-placeholder">
-                  <div className="upload-icon-wrapper">
-                    <div className="upload-arrow"></div>
+                  <div className="upload-circle">
+                    <span className="upload-plus">+</span>
                   </div>
-                  <p className="upload-text">拖曳檔案到這裡，或點擊選擇</p>
+                  <p className="upload-text">拖曳或點擊上傳</p>
                 </div>
               )}
             </div>
@@ -283,14 +324,7 @@ export default function App() {
                 onClick={generateQuotes}
                 disabled={loading}
               >
-                {loading ? (
-                  <>
-                    <span className="spinner"></span>
-                    <span>AI 正在分析你的簡報...</span>
-                  </>
-                ) : (
-                  '產生金句'
-                )}
+                {loading ? '分析中...' : '產生金句'}
               </button>
             )}
 
@@ -306,7 +340,7 @@ export default function App() {
         <section className="results-section">
           <div className="container">
             <h2>你的課程金句</h2>
-            <p className="results-subtitle">點擊任一卡片即可下載 1080×1080 社群圖</p>
+            <p className="results-subtitle">點擊卡片下載 1080×1080 圖片</p>
             <div className="quotes-grid">
               {quotes.map((quote, index) => (
                 <QuoteCard 
@@ -325,15 +359,16 @@ export default function App() {
       <section className="cta-section">
         <div className="container">
           <div className="cta-card">
-            <h2>想學更多 AI 應用技巧？</h2>
-            <p>追蹤閱讀塗鴉實驗室，獲得第一手的 AI 教學資源</p>
+            <div className="cta-avatar">沛</div>
+            <h2>這個工具是誰做的？</h2>
+            <p>我是陳沛孺，專門教 40-55 歲專業人士<br/>用 AI 打造個人品牌與自動化系統</p>
             <a
-              href="https://www.facebook.com/readingdoodlelab"
+              href="https://www.facebook.com/peiru1985"
               target="_blank"
               rel="noopener noreferrer"
               className="cta-btn"
             >
-              前往 Facebook 粉專
+              追蹤陳沛孺
             </a>
           </div>
         </div>
@@ -341,9 +376,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="footer">
-        <div className="container">
-          <p>© 2025 陳沛孺 / 閱讀塗鴉實驗室</p>
-        </div>
+        <p>© 2025 陳沛孺 / 閱讀塗鴉實驗室</p>
       </footer>
     </div>
   );
