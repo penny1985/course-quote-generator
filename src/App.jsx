@@ -1,31 +1,31 @@
 import React, { useState, useRef } from 'react';
-import { MeshGradient } from '@paper-design/shaders-react';
+
+// 使用步驟元件
+function StepCard({ number, title, description }) {
+  return (
+    <div className="step-card">
+      <div className="step-number">{number}</div>
+      <div className="step-content">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+    </div>
+  );
+}
 
 // 金句卡片元件
 function QuoteCard({ quote, index, onDownload }) {
-  const gradients = [
-    ['#1a1a2e', '#16213e', '#0f3460'],
-    ['#2d3436', '#000000', '#1a1a1a'],
-    ['#134e5e', '#71b280', '#3d8b6e'],
-    ['#373B44', '#4286f4', '#5a9cf4'],
-    ['#8E2DE2', '#4A00E0', '#6b21d1'],
-    ['#ee0979', '#ff6a00', '#ff8533'],
-  ];
-  
-  const colors = gradients[index % gradients.length];
-  
   return (
     <div 
-      className="quote-card"
+      className={`quote-card quote-card-${index % 6}`}
       onClick={() => onDownload(index)}
-      style={{
-        background: `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 50%, ${colors[2]} 100%)`,
-      }}
     >
-      <div className="quote-decoration">"</div>
+      <div className="quote-mark">"</div>
       <p className="quote-text">{quote}</p>
-      <div className="quote-watermark">陳沛孺</div>
-      <div className="quote-hint">點擊下載圖片</div>
+      <div className="quote-footer">
+        <span className="quote-watermark">陳沛孺</span>
+        <span className="quote-download">點擊下載</span>
+      </div>
     </div>
   );
 }
@@ -39,6 +39,11 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
+  const uploadRef = useRef(null);
+
+  const scrollToUpload = () => {
+    uploadRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const handleFileSelect = (selectedFile) => {
     if (!selectedFile) return;
@@ -116,57 +121,51 @@ export default function App() {
     canvas.height = 1080;
     
     const gradients = [
-      ['#1a1a2e', '#16213e', '#0f3460'],
-      ['#2d3436', '#000000', '#1a1a1a'],
-      ['#134e5e', '#71b280', '#3d8b6e'],
-      ['#373B44', '#4286f4', '#5a9cf4'],
-      ['#8E2DE2', '#4A00E0', '#6b21d1'],
-      ['#ee0979', '#ff6a00', '#ff8533'],
+      ['#1a1a2e', '#16213e'],
+      ['#0f0f0f', '#1a1a1a'],
+      ['#1a3a2e', '#0f2e1f'],
+      ['#1a2a3e', '#0f1f3e'],
+      ['#2a1a3e', '#1f0f3e'],
+      ['#3e1a2a', '#2e0f1a'],
     ];
     
     const colors = gradients[index % gradients.length];
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
     gradient.addColorStop(0, colors[0]);
-    gradient.addColorStop(0.5, colors[1]);
-    gradient.addColorStop(1, colors[2]);
+    gradient.addColorStop(1, colors[1]);
     
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // 裝飾圓形
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.beginPath();
-    ctx.arc(canvas.width + 50, -50, 200, 0, Math.PI * 2);
-    ctx.fill();
-    
+    // 裝飾
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
     ctx.beginPath();
-    ctx.arc(-50, canvas.height + 50, 150, 0, Math.PI * 2);
+    ctx.arc(canvas.width * 0.8, canvas.height * 0.2, 300, 0, Math.PI * 2);
     ctx.fill();
     
     // 引號
-    ctx.font = '200px Georgia';
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.fillText('"', 80, 200);
+    ctx.font = '240px "Noto Serif TC", Georgia, serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillText('"', 60, 220);
     
     // 金句文字
-    ctx.font = 'bold 56px "Noto Serif TC", serif';
+    ctx.font = '52px "Noto Serif TC", serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     
     const maxWidth = canvas.width - 160;
-    const lineHeight = 84;
-    const words = quote.split('');
+    const lineHeight = 78;
+    const chars = quote.split('');
     let line = '';
-    let y = 300;
+    let y = 320;
     
-    for (let i = 0; i < words.length; i++) {
-      const testLine = line + words[i];
+    for (let i = 0; i < chars.length; i++) {
+      const testLine = line + chars[i];
       const metrics = ctx.measureText(testLine);
       if (metrics.width > maxWidth && i > 0) {
         ctx.fillText(line, 80, y);
-        line = words[i];
+        line = chars[i];
         y += lineHeight;
       } else {
         line = testLine;
@@ -175,8 +174,8 @@ export default function App() {
     ctx.fillText(line, 80, y);
     
     // 浮水印
-    ctx.font = '32px "Noto Sans TC", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '28px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.textAlign = 'right';
     ctx.fillText('陳沛孺', canvas.width - 80, canvas.height - 80);
     
@@ -188,80 +187,126 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* 動態背景 */}
-      <div className="shader-bg">
-        <MeshGradient
-          colors={['#0f0f1a', '#1a1a2e', '#16213e', '#0f3460']}
-          speed={0.15}
-          style={{ width: '100%', height: '100%' }}
-        />
-      </div>
+      {/* 背景 */}
+      <div className="bg-gradient"></div>
+      <div className="bg-blur"></div>
       
       {/* 隱藏的 Canvas */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       
-      <div className="container">
-        {/* 標題區 */}
-        <header className="header">
+      {/* Hero Section */}
+      <section className="hero">
+        <div className="hero-content">
+          <p className="hero-label">AI-Powered Tool</p>
           <h1>課程金句產生器</h1>
-          <p>上傳你的簡報，AI 自動分析產出吸睛金句</p>
-        </header>
-
-        {/* 上傳區 */}
-        <div
-          className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
-          onClick={() => fileInputRef.current?.click()}
-          onDrop={handleDrop}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".png,.jpg,.jpeg,.webp,.pdf"
-            onChange={(e) => handleFileSelect(e.target.files[0])}
-            style={{ display: 'none' }}
-          />
-          
-          {preview ? (
-            <div className="preview">
-              <img src={preview} alt="預覽" />
-              <p>{file.name}</p>
-            </div>
-          ) : file ? (
-            <div className="preview">
-              <div className="file-icon">📄</div>
-              <p>{file.name}</p>
-            </div>
-          ) : (
-            <div className="upload-placeholder">
-              <div className="upload-icon">📤</div>
-              <p className="upload-text">拖曳簡報到這裡，或點擊上傳</p>
-              <p className="upload-hint">支援 PNG、JPG、PDF 格式</p>
-            </div>
-          )}
-        </div>
-
-        {/* 生成按鈕 */}
-        {file && (
-          <button
-            className={`generate-btn ${loading ? 'loading' : ''}`}
-            onClick={generateQuotes}
-            disabled={loading}
-          >
-            {loading ? '分析中...' : '✨ 產生金句'}
+          <p className="hero-desc">
+            上傳你的簡報，讓 AI 在 30 秒內<br />
+            為你的課程提煉出令人印象深刻的金句
+          </p>
+          <button className="hero-cta" onClick={scrollToUpload}>
+            開始使用
           </button>
-        )}
+        </div>
+      </section>
 
-        {/* 錯誤訊息 */}
-        {error && (
-          <div className="error-message">{error}</div>
-        )}
+      {/* How it works */}
+      <section className="how-it-works">
+        <div className="container">
+          <h2>三步驟，輕鬆產出課程金句</h2>
+          <div className="steps-grid">
+            <StepCard 
+              number="1"
+              title="上傳簡報"
+              description="將你的課程簡報截圖或 PDF 上傳，支援 PNG、JPG、PDF 格式"
+            />
+            <StepCard 
+              number="2"
+              title="AI 分析"
+              description="Gemini AI 會分析你的內容，抓取核心概念與價值主張"
+            />
+            <StepCard 
+              number="3"
+              title="下載金句"
+              description="獲得 6 句精煉的課程金句，可直接下載為社群圖卡"
+            />
+          </div>
+        </div>
+      </section>
 
-        {/* 金句卡片區 */}
-        {quotes.length > 0 && (
-          <div className="quotes-section">
+      {/* Upload Section */}
+      <section className="upload-section" ref={uploadRef}>
+        <div className="container">
+          <div className="upload-card">
+            <h2>上傳你的簡報</h2>
+            <p className="upload-subtitle">支援 PNG、JPG、PDF，建議上傳課程大綱或封面頁</p>
+            
+            <div
+              className={`upload-zone ${dragOver ? 'drag-over' : ''} ${file ? 'has-file' : ''}`}
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".png,.jpg,.jpeg,.webp,.pdf"
+                onChange={(e) => handleFileSelect(e.target.files[0])}
+                style={{ display: 'none' }}
+              />
+              
+              {preview ? (
+                <div className="preview">
+                  <img src={preview} alt="預覽" />
+                  <p className="file-name">{file.name}</p>
+                  <p className="change-hint">點擊更換檔案</p>
+                </div>
+              ) : file ? (
+                <div className="preview">
+                  <div className="pdf-icon">PDF</div>
+                  <p className="file-name">{file.name}</p>
+                  <p className="change-hint">點擊更換檔案</p>
+                </div>
+              ) : (
+                <div className="upload-placeholder">
+                  <div className="upload-icon-wrapper">
+                    <div className="upload-arrow"></div>
+                  </div>
+                  <p className="upload-text">拖曳檔案到這裡，或點擊選擇</p>
+                </div>
+              )}
+            </div>
+
+            {file && (
+              <button
+                className={`generate-btn ${loading ? 'loading' : ''}`}
+                onClick={generateQuotes}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner"></span>
+                    <span>AI 正在分析你的簡報...</span>
+                  </>
+                ) : (
+                  '產生金句'
+                )}
+              </button>
+            )}
+
+            {error && (
+              <div className="error-message">{error}</div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Results Section */}
+      {quotes.length > 0 && (
+        <section className="results-section">
+          <div className="container">
             <h2>你的課程金句</h2>
+            <p className="results-subtitle">點擊任一卡片即可下載 1080×1080 社群圖</p>
             <div className="quotes-grid">
               {quotes.map((quote, index) => (
                 <QuoteCard 
@@ -272,22 +317,34 @@ export default function App() {
                 />
               ))}
             </div>
-
-            {/* CTA */}
-            <div className="cta-section">
-              <p>想學更多 AI 課程設計技巧？</p>
-              <a
-                href="https://www.facebook.com/readingdoodlelab"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="cta-btn"
-              >
-                追蹤 閱讀塗鴉實驗室
-              </a>
-            </div>
           </div>
-        )}
-      </div>
+        </section>
+      )}
+
+      {/* CTA Section */}
+      <section className="cta-section">
+        <div className="container">
+          <div className="cta-card">
+            <h2>想學更多 AI 應用技巧？</h2>
+            <p>追蹤閱讀塗鴉實驗室，獲得第一手的 AI 教學資源</p>
+            <a
+              href="https://www.facebook.com/readingdoodlelab"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cta-btn"
+            >
+              前往 Facebook 粉專
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="footer">
+        <div className="container">
+          <p>© 2025 陳沛孺 / 閱讀塗鴉實驗室</p>
+        </div>
+      </footer>
     </div>
   );
 }
