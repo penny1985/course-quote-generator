@@ -1,5 +1,5 @@
 // Netlify Function: 調用 Gemini API 產生金句
-export async function handler(event) {
+const handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -25,8 +25,8 @@ export async function handler(event) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: 'API Key 未設定，請到 Netlify Site configuration → Environment variables 設定 GEMINI_API_KEY' 
+      body: JSON.stringify({
+        error: 'API Key 未設定，請到 Netlify Site configuration → Environment variables 設定 GEMINI_API_KEY'
       })
     };
   }
@@ -56,7 +56,7 @@ export async function handler(event) {
   // 呼叫 Gemini API
   try {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    
+
     const payload = {
       contents: [{
         parts: [
@@ -95,7 +95,7 @@ export async function handler(event) {
 
     if (!response.ok) {
       console.error('Gemini API error:', response.status, responseText);
-      
+
       // 嘗試解析錯誤訊息
       try {
         const errorData = JSON.parse(responseText);
@@ -119,7 +119,7 @@ export async function handler(event) {
     try {
       data = JSON.parse(responseText);
     } catch (e) {
-      console.error('Failed to parse response:', responseText);
+      console.error('Failed to parse response:', responseText.substring(0, 500));
       return {
         statusCode: 500,
         headers,
@@ -129,9 +129,9 @@ export async function handler(event) {
 
     // 取得文字內容
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+
     if (!text) {
-      console.error('No text in response:', JSON.stringify(data));
+      console.error('No text in response:', JSON.stringify(data).substring(0, 500));
       return {
         statusCode: 500,
         headers,
@@ -167,4 +167,6 @@ export async function handler(event) {
       body: JSON.stringify({ error: '伺服器錯誤：' + (error.message || '未知錯誤') })
     };
   }
-}
+};
+
+module.exports = { handler };

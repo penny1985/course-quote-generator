@@ -106,16 +106,19 @@ export default function App() {
       });
       
       const text = await response.text();
-      
+
       if (!text) {
         throw new Error('伺服器沒有回應');
       }
-      
+
       let data;
       try {
         data = JSON.parse(text);
       } catch (e) {
         console.error('Response was:', text);
+        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+          throw new Error('函式端點無法連線，請確認 Netlify Functions 已正確部署');
+        }
         throw new Error('伺服器回應格式錯誤');
       }
       
