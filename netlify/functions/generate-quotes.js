@@ -1,62 +1,59 @@
-// Netlify Function: 調用 Gemini API 產生金句
-export async function handler(event) {
-  const headers = {
+// Netlify Function v2: 調用 Gemini API 產生金句
+
+// 相容 Node.js 18+ 的 JSON 回應 helper（不使用 Response.json()）
+function jsonResponse(body, status, corsHeaders) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
+  });
+}
+
+export default async (req) => {
+  const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
   };
 
   // CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+  if (req.method === 'OPTIONS') {
+    return new Response('', { status: 200, headers: corsHeaders });
   }
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+  // 只接受 POST
+  if (req.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed' }, 405, corsHeaders);
   }
 
   // 檢查 API Key
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        error: 'API Key 未設定，請到 Netlify Site configuration → Environment variables 設定 GEMINI_API_KEY' 
-      })
-    };
+    return jsonResponse(
+      { error: 'API Key 未設定，請到 Netlify Site configuration → Environment variables 設定 GEMINI_API_KEY' },
+      500, corsHeaders
+    );
   }
 
   // 解析請求
   let imageData, mimeType;
   try {
-    const body = JSON.parse(event.body || '{}');
+    const body = await req.json();
     imageData = body.imageData;
     mimeType = body.mimeType || 'image/png';
   } catch (e) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: '請求格式錯誤' })
-    };
+    return jsonResponse({ error: '請求格式錯誤' }, 400, corsHeaders);
   }
 
   if (!imageData) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: '請提供檔案' })
-    };
+    return jsonResponse({ error: '請提供檔案' }, 400, corsHeaders);
   }
 
   // 呼叫 Gemini API
   try {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    
+
     const payload = {
       contents: [{
         parts: [
@@ -95,22 +92,12 @@ export async function handler(event) {
 
     if (!response.ok) {
       console.error('Gemini API error:', response.status, responseText);
-      
-      // 嘗試解析錯誤訊息
       try {
         const errorData = JSON.parse(responseText);
         const errorMsg = errorData.error?.message || `API 錯誤 ${response.status}`;
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: errorMsg })
-        };
+        return jsonResponse({ error: errorMsg }, 500, corsHeaders);
       } catch {
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: `API 錯誤 ${response.status}` })
-        };
+        return jsonResponse({ error: `API 錯誤 ${response.status}` }, 500, corsHeaders);
       }
     }
 
@@ -119,24 +106,16 @@ export async function handler(event) {
     try {
       data = JSON.parse(responseText);
     } catch (e) {
-      console.error('Failed to parse response:', responseText);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: '無法解析 API 回應' })
-      };
+      console.error('Failed to parse response:', responseText.substring(0, 500));
+      return jsonResponse({ error: '無法解析 API 回應' }, 500, corsHeaders);
     }
 
     // 取得文字內容
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+
     if (!text) {
-      console.error('No text in response:', JSON.stringify(data));
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'AI 無法從這張圖產生金句，請換一張試試' })
-      };
+      console.error('No text in response:', JSON.stringify(data).substring(0, 500));
+      return jsonResponse({ error: 'AI 無法從這張圖產生金句，請換一張試試' }, 500, corsHeaders);
     }
 
     // 分割金句
@@ -146,25 +125,16 @@ export async function handler(event) {
       .filter(line => line.length > 5 && line.length < 80);
 
     if (quotes.length === 0) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: '無法解析金句，請換一張圖試試' })
-      };
+      return jsonResponse({ error: '無法解析金句，請換一張圖試試' }, 500, corsHeaders);
     }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ quotes })
-    };
+    return jsonResponse({ quotes }, 200, corsHeaders);
 
   } catch (error) {
     console.error('Function error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: '伺服器錯誤：' + (error.message || '未知錯誤') })
-    };
+    return jsonResponse(
+      { error: '伺服器錯誤：' + (error.message || '未知錯誤') },
+      500, corsHeaders
+    );
   }
-}
+};
