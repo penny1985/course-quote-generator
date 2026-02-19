@@ -47,13 +47,20 @@ export default function App() {
 
   const handleFileSelect = (selectedFile) => {
     if (!selectedFile) return;
-    
+
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
     if (!validTypes.includes(selectedFile.type)) {
       setError('請上傳 PNG、JPG 或 PDF 格式的檔案');
       return;
     }
-    
+
+    // Netlify Functions 請求大小限制約 1MB，Base64 會增加 33%
+    const maxSize = 750 * 1024; // 750KB
+    if (selectedFile.size > maxSize) {
+      setError(`檔案太大（${(selectedFile.size / 1024 / 1024).toFixed(1)}MB），請壓縮到 750KB 以下再上傳`);
+      return;
+    }
+
     setFile(selectedFile);
     setError(null);
     setQuotes([]);
@@ -115,11 +122,11 @@ export default function App() {
       try {
         data = JSON.parse(text);
       } catch (e) {
-        console.error('Response was:', text);
+        console.error('Response status:', response.status, 'Response body:', text.substring(0, 300));
         if (text.includes('<!DOCTYPE') || text.includes('<html')) {
           throw new Error('函式端點無法連線，請確認 Netlify Functions 已正確部署');
         }
-        throw new Error('伺服器回應格式錯誤');
+        throw new Error(`伺服器回應格式錯誤（HTTP ${response.status}）`);
       }
       
       if (data.error) {

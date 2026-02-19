@@ -1,4 +1,16 @@
 // Netlify Function v2: 調用 Gemini API 產生金句
+
+// 相容 Node.js 18+ 的 JSON 回應 helper（不使用 Response.json()）
+function jsonResponse(body, status, corsHeaders) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
+  });
+}
+
 export default async (req) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -12,18 +24,15 @@ export default async (req) => {
 
   // 只接受 POST
   if (req.method !== 'POST') {
-    return Response.json(
-      { error: 'Method not allowed' },
-      { status: 405, headers: corsHeaders }
-    );
+    return jsonResponse({ error: 'Method not allowed' }, 405, corsHeaders);
   }
 
   // 檢查 API Key
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return Response.json(
+    return jsonResponse(
       { error: 'API Key 未設定，請到 Netlify Site configuration → Environment variables 設定 GEMINI_API_KEY' },
-      { status: 500, headers: corsHeaders }
+      500, corsHeaders
     );
   }
 
@@ -34,17 +43,11 @@ export default async (req) => {
     imageData = body.imageData;
     mimeType = body.mimeType || 'image/png';
   } catch (e) {
-    return Response.json(
-      { error: '請求格式錯誤' },
-      { status: 400, headers: corsHeaders }
-    );
+    return jsonResponse({ error: '請求格式錯誤' }, 400, corsHeaders);
   }
 
   if (!imageData) {
-    return Response.json(
-      { error: '請提供檔案' },
-      { status: 400, headers: corsHeaders }
-    );
+    return jsonResponse({ error: '請提供檔案' }, 400, corsHeaders);
   }
 
   // 呼叫 Gemini API
@@ -92,15 +95,9 @@ export default async (req) => {
       try {
         const errorData = JSON.parse(responseText);
         const errorMsg = errorData.error?.message || `API 錯誤 ${response.status}`;
-        return Response.json(
-          { error: errorMsg },
-          { status: 500, headers: corsHeaders }
-        );
+        return jsonResponse({ error: errorMsg }, 500, corsHeaders);
       } catch {
-        return Response.json(
-          { error: `API 錯誤 ${response.status}` },
-          { status: 500, headers: corsHeaders }
-        );
+        return jsonResponse({ error: `API 錯誤 ${response.status}` }, 500, corsHeaders);
       }
     }
 
@@ -110,10 +107,7 @@ export default async (req) => {
       data = JSON.parse(responseText);
     } catch (e) {
       console.error('Failed to parse response:', responseText.substring(0, 500));
-      return Response.json(
-        { error: '無法解析 API 回應' },
-        { status: 500, headers: corsHeaders }
-      );
+      return jsonResponse({ error: '無法解析 API 回應' }, 500, corsHeaders);
     }
 
     // 取得文字內容
@@ -121,10 +115,7 @@ export default async (req) => {
 
     if (!text) {
       console.error('No text in response:', JSON.stringify(data).substring(0, 500));
-      return Response.json(
-        { error: 'AI 無法從這張圖產生金句，請換一張試試' },
-        { status: 500, headers: corsHeaders }
-      );
+      return jsonResponse({ error: 'AI 無法從這張圖產生金句，請換一張試試' }, 500, corsHeaders);
     }
 
     // 分割金句
@@ -134,22 +125,16 @@ export default async (req) => {
       .filter(line => line.length > 5 && line.length < 80);
 
     if (quotes.length === 0) {
-      return Response.json(
-        { error: '無法解析金句，請換一張圖試試' },
-        { status: 500, headers: corsHeaders }
-      );
+      return jsonResponse({ error: '無法解析金句，請換一張圖試試' }, 500, corsHeaders);
     }
 
-    return Response.json(
-      { quotes },
-      { status: 200, headers: corsHeaders }
-    );
+    return jsonResponse({ quotes }, 200, corsHeaders);
 
   } catch (error) {
     console.error('Function error:', error);
-    return Response.json(
+    return jsonResponse(
       { error: '伺服器錯誤：' + (error.message || '未知錯誤') },
-      { status: 500, headers: corsHeaders }
+      500, corsHeaders
     );
   }
 };
