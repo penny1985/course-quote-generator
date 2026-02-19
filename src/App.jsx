@@ -1,5 +1,31 @@
 import React, { useState, useRef } from 'react';
 
+// 壓縮圖片：縮放到最大 1600px 邊長，以 JPEG 0.7 品質輸出
+function compressImage(file, maxDim = 1600, quality = 0.7) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => resolve(blob),
+        'image/jpeg',
+        quality
+      );
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 // 使用步驟元件
 function StepCard({ number, title, description }) {
   return (
@@ -54,10 +80,10 @@ export default function App() {
       return;
     }
 
-    // Netlify Functions 請求大小限制約 1MB，Base64 會增加 33%
-    const maxSize = 750 * 1024; // 750KB
+    // Netlify Functions 請求限制 6MB，Base64 增加 33%，所以原檔上限約 4.5MB
+    const maxSize = 4.5 * 1024 * 1024;
     if (selectedFile.size > maxSize) {
-      setError(`檔案太大（${(selectedFile.size / 1024 / 1024).toFixed(1)}MB），請壓縮到 750KB 以下再上傳`);
+      setError(`檔案太大（${(selectedFile.size / 1024 / 1024).toFixed(1)}MB），請壓縮到 4.5MB 以下再上傳`);
       return;
     }
 
@@ -83,11 +109,22 @@ export default function App() {
 
   const generateQuotes = async () => {
     if (!file) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
+      // 如果是圖片且超過 500KB，先壓縮
+      let fileToSend = file;
+      let mimeToSend = file.type;
+      if (file.type.startsWith('image/') && file.size > 500 * 1024) {
+        const compressed = await compressImage(file);
+        if (compressed && compressed.size < file.size) {
+          fileToSend = compressed;
+          mimeToSend = 'image/jpeg';
+        }
+      }
+
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -96,19 +133,19 @@ export default function App() {
           resolve(base64Data);
         };
         reader.onerror = () => reject(new Error('檔案讀取失敗'));
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(fileToSend);
       });
 
       if (!base64) {
         throw new Error('無法讀取檔案內容');
       }
-      
+
       const response = await fetch('/.netlify/functions/generate-quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageData: base64,
-          mimeType: file.type
+          mimeType: mimeToSend
         })
       });
       
@@ -289,7 +326,7 @@ export default function App() {
         <div className="container">
           <div className="upload-card">
             <h2>上傳你的簡報</h2>
-            <p className="upload-subtitle">支援 PNG、JPG、PDF</p>
+            <p className="upload-subtitle">支援 PNG、JPG、PDF（最大 4.5MB）</p>
             
             <div
               className={`upload-zone ${dragOver ? 'drag-over' : ''} ${file ? 'has-file' : ''}`}
