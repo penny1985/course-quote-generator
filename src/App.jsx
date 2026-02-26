@@ -1,383 +1,411 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { tools, workflows, summary } from './data/evaluations';
 
-// 使用步驟元件
-function StepCard({ number, title, description }) {
+/* ─── 評分視覺化 ─── */
+function RatingBar({ rating, max = 5, animate = false }) {
+  const pct = (rating / max) * 100;
   return (
-    <div className="step-card">
-      <div className="step-number">{number}</div>
-      <div className="step-content">
-        <h3>{title}</h3>
-        <p>{description}</p>
+    <div className="rating-bar">
+      <div className="rating-bar__track">
+        <div
+          className={`rating-bar__fill ${animate ? 'animate' : ''}`}
+          style={{ '--target-width': `${pct}%` }}
+        />
       </div>
+      <span className="rating-bar__value">{rating}</span>
     </div>
   );
 }
 
-// 金句卡片元件
-function QuoteCard({ quote, index, onDownload }) {
+/* ─── 工具標誌 ─── */
+function ToolBadge({ tool, size = 'md' }) {
   return (
-    <div 
-      className={`quote-card quote-card-${index % 6}`}
-      onClick={() => onDownload(index)}
+    <span
+      className={`tool-badge tool-badge--${size}`}
+      style={{ '--tool-color': tool.color }}
     >
-      <div className="quote-mark">"</div>
-      <p className="quote-text">{quote}</p>
-      <div className="quote-footer">
-        <span className="quote-watermark">陳沛孺</span>
-        <span className="quote-download">點擊下載</span>
+      {tool.letter}
+    </span>
+  );
+}
+
+/* ─── Hero Section ─── */
+function Hero() {
+  return (
+    <section className="hero">
+      <div className="hero__grain" />
+      <div className="hero__lines">
+        <span /><span /><span /><span /><span />
+      </div>
+      <div className="hero__content">
+        <p className="hero__edition">2026 Edition</p>
+        <h1 className="hero__title">
+          <span className="hero__title-line">講師 AI 工具</span>
+          <span className="hero__title-line hero__title-line--accent">評測指南</span>
+        </h1>
+        <p className="hero__subtitle">
+          以職業講師的 14 個核心工作流程為軸，<br />
+          橫向對比 6 大主流 AI 工具的真實適用性。
+        </p>
+        <div className="hero__stats">
+          <div className="hero__stat">
+            <span className="hero__stat-num">{summary.totalWorkflows}</span>
+            <span className="hero__stat-label">工作流程</span>
+          </div>
+          <div className="hero__stat-divider" />
+          <div className="hero__stat">
+            <span className="hero__stat-num">{summary.totalTools}</span>
+            <span className="hero__stat-label">AI 工具</span>
+          </div>
+          <div className="hero__stat-divider" />
+          <div className="hero__stat">
+            <span className="hero__stat-num">{summary.totalEvaluations}</span>
+            <span className="hero__stat-label">項評比</span>
+          </div>
+        </div>
+        <a href="#tools-overview" className="hero__cta">
+          開始探索
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3v10M3 8l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </section>
+  );
+}
+
+/* ─── 工具總覽卡片 ─── */
+function ToolProfileCard({ tool, recommendCount }) {
+  return (
+    <div className="tool-profile" style={{ '--tool-color': tool.color }}>
+      <div className="tool-profile__header">
+        <ToolBadge tool={tool} size="lg" />
+        <div>
+          <h3 className="tool-profile__name">{tool.name}</h3>
+          <p className="tool-profile__company">{tool.company}</p>
+        </div>
+      </div>
+      <p className="tool-profile__models">{tool.models}</p>
+      <p className="tool-profile__desc">{tool.description}</p>
+      <ul className="tool-profile__features">
+        {tool.features.map((f, i) => (
+          <li key={i}>{f}</li>
+        ))}
+      </ul>
+      <div className="tool-profile__footer">
+        <span className="tool-profile__pricing">{tool.pricing}</span>
+        {recommendCount > 0 && (
+          <span className="tool-profile__wins">{recommendCount} 項首選</span>
+        )}
       </div>
     </div>
   );
 }
 
+/* ─── 工具總覽 Section ─── */
+function ToolsOverview() {
+  return (
+    <section className="tools-overview" id="tools-overview">
+      <div className="container">
+        <div className="section-header">
+          <span className="section-label">Tools</span>
+          <h2 className="section-title">六大 AI 工具一覽</h2>
+          <p className="section-desc">2026 年主流 AI 工具，各有擅長的領域</p>
+        </div>
+        <div className="tools-grid">
+          {tools.map(tool => (
+            <ToolProfileCard
+              key={tool.id}
+              tool={tool}
+              recommendCount={summary.recommendCounts[tool.id] || 0}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── 工作流程導覽列 ─── */
+function WorkflowNav({ activeId, onSelect }) {
+  const navRef = useRef(null);
+
+  useEffect(() => {
+    if (!navRef.current) return;
+    const active = navRef.current.querySelector('.wf-nav__item--active');
+    if (active) {
+      active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [activeId]);
+
+  return (
+    <nav className="wf-nav" ref={navRef}>
+      <div className="wf-nav__track">
+        {workflows.map(wf => (
+          <button
+            key={wf.id}
+            className={`wf-nav__item ${activeId === wf.id ? 'wf-nav__item--active' : ''}`}
+            onClick={() => onSelect(wf.id)}
+          >
+            <span className="wf-nav__num">{wf.number}</span>
+            <span className="wf-nav__name">{wf.name}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+/* ─── 工具評比卡片（在工作流程中） ─── */
+function EvalCard({ tool, evaluation, isRecommend, animate }) {
+  return (
+    <div className={`eval-card ${isRecommend ? 'eval-card--recommend' : ''}`} style={{ '--tool-color': tool.color }}>
+      {isRecommend && <div className="eval-card__badge">首選推薦</div>}
+      <div className="eval-card__header">
+        <ToolBadge tool={tool} />
+        <div className="eval-card__meta">
+          <h4 className="eval-card__name">{tool.name}</h4>
+          <RatingBar rating={evaluation.rating} animate={animate} />
+        </div>
+      </div>
+      <p className="eval-card__summary">{evaluation.summary}</p>
+      <div className="eval-card__tip">
+        <span className="eval-card__tip-label">實用技巧</span>
+        <p>{evaluation.highlight}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ─── 單一工作流程 Section ─── */
+function WorkflowSection({ workflow, isVisible }) {
+  const toolMap = {};
+  tools.forEach(t => { toolMap[t.id] = t; });
+
+  // 按評分排序，推薦的排第一
+  const sorted = Object.entries(workflow.evaluations).sort((a, b) => {
+    if (a[0] === workflow.recommend) return -1;
+    if (b[0] === workflow.recommend) return 1;
+    return b[1].rating - a[1].rating;
+  });
+
+  return (
+    <div className={`wf-section ${isVisible ? 'wf-section--visible' : ''}`}>
+      <div className="wf-section__header">
+        <span className="wf-section__number">{workflow.number}</span>
+        <div>
+          <h3 className="wf-section__title">{workflow.name}</h3>
+          <p className="wf-section__desc">{workflow.description}</p>
+        </div>
+      </div>
+      <div className="eval-grid">
+        {sorted.map(([toolId, evaluation], i) => (
+          <EvalCard
+            key={toolId}
+            tool={toolMap[toolId]}
+            evaluation={evaluation}
+            isRecommend={toolId === workflow.recommend}
+            animate={isVisible}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── 比較矩陣（摘要表格） ─── */
+function ComparisonMatrix() {
+  const toolMap = {};
+  tools.forEach(t => { toolMap[t.id] = t; });
+
+  return (
+    <section className="matrix-section" id="matrix">
+      <div className="container">
+        <div className="section-header">
+          <span className="section-label">Matrix</span>
+          <h2 className="section-title">總覽比較矩陣</h2>
+          <p className="section-desc">一眼看懂每個工作流程的最佳選擇</p>
+        </div>
+        <div className="matrix-scroll">
+          <table className="matrix">
+            <thead>
+              <tr>
+                <th className="matrix__corner">工作流程</th>
+                {tools.map(tool => (
+                  <th key={tool.id} style={{ '--tool-color': tool.color }}>
+                    <ToolBadge tool={tool} size="sm" />
+                    <span>{tool.name}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {workflows.map(wf => (
+                <tr key={wf.id}>
+                  <td className="matrix__wf">
+                    <span className="matrix__wf-num">{wf.number}</span>
+                    {wf.name}
+                  </td>
+                  {tools.map(tool => {
+                    const ev = wf.evaluations[tool.id];
+                    const isTop = tool.id === wf.recommend;
+                    return (
+                      <td
+                        key={tool.id}
+                        className={`matrix__cell ${isTop ? 'matrix__cell--top' : ''} ${ev.rating >= 4.5 ? 'matrix__cell--high' : ev.rating <= 2.5 ? 'matrix__cell--low' : ''}`}
+                      >
+                        {ev.rating}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="matrix-legend">
+          <span className="matrix-legend__item matrix-legend__item--top">首選推薦</span>
+          <span className="matrix-legend__item matrix-legend__item--high">4.5+</span>
+          <span className="matrix-legend__item matrix-legend__item--mid">3 - 4</span>
+          <span className="matrix-legend__item matrix-legend__item--low">2.5 以下</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── 結論 Section ─── */
+function Conclusion() {
+  const insights = [
+    { tool: 'Claude', tip: '長篇寫作與深度回饋首選 — 講稿、電子書、作業批改都是它的主場' },
+    { tool: 'Copilot', tip: '辦公行政效率之王 — 信件、簡報、CRM、庶務流程一站搞定' },
+    { tool: 'Gemini', tip: 'Google 生態系最強整合 — 影片、數據分析、課堂互動的全能選手' },
+    { tool: 'ChatGPT', tip: '行銷創意與圖片生成最佳 — 文案發想、社群圖卡、A/B 測試首選' },
+    { tool: 'Grok', tip: '社群趨勢即時洞察 — 掌握 X 上最新話題，搶先佈局內容' },
+    { tool: 'Perplexity', tip: '研究查證的學術利器 — 每個引用都有來源，教育方案僅 $10/月' },
+  ];
+
+  return (
+    <section className="conclusion">
+      <div className="container">
+        <div className="section-header">
+          <span className="section-label">Insights</span>
+          <h2 className="section-title">選擇策略</h2>
+          <p className="section-desc">沒有最好的工具，只有最適合的搭配</p>
+        </div>
+        <div className="insights-grid">
+          {insights.map((item, i) => (
+            <div key={i} className="insight-card" style={{ animationDelay: `${i * 0.1}s` }}>
+              <span className="insight-card__tool">{item.tool}</span>
+              <p className="insight-card__tip">{item.tip}</p>
+            </div>
+          ))}
+        </div>
+        <div className="conclusion__note">
+          <p>
+            <strong>給講師的建議：</strong>不需要訂閱所有工具。建議從你最常用的 2-3 個工作流程出發，
+            選擇對應的最佳工具組合。隨著使用深入，再逐步擴展你的 AI 工具庫。
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Footer ─── */
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="container">
+        <div className="footer__rule" />
+        <div className="footer__content">
+          <p className="footer__credit">
+            講師 AI 工具評測指南 &mdash; 2026 Edition
+          </p>
+          <p className="footer__note">
+            評測內容基於 2026 年 2 月各工具的最新版本，僅供參考。
+            <br />AI 工具更新快速，建議定期重新評估。
+          </p>
+          <p className="footer__author">
+            © 2026 陳沛孺 / 閱讀塗鴉實驗室
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ─── 主應用 ─── */
 export default function App() {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [quotes, setQuotes] = useState([]);
-  const [error, setError] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef(null);
-  const canvasRef = useRef(null);
-  const uploadRef = useRef(null);
+  const [activeWf, setActiveWf] = useState(workflows[0].id);
+  const [visibleSections, setVisibleSections] = useState(new Set());
+  const sectionRefs = useRef({});
 
-  const scrollToUpload = () => {
-    uploadRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Intersection Observer for fade-in animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            setVisibleSections(prev => new Set([...prev, entry.target.dataset.section]));
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -50px 0px' }
+    );
 
-  const handleFileSelect = (selectedFile) => {
-    if (!selectedFile) return;
-    
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
-    if (!validTypes.includes(selectedFile.type)) {
-      setError('請上傳 PNG、JPG 或 PDF 格式的檔案');
-      return;
+    Object.values(sectionRefs.current).forEach(el => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const handleWfSelect = useCallback((id) => {
+    setActiveWf(id);
+    // Scroll to workflows area
+    const el = document.getElementById('workflows');
+    if (el) {
+      const offset = el.getBoundingClientRect().top + window.scrollY - 140;
+      window.scrollTo({ top: offset, behavior: 'smooth' });
     }
-    
-    setFile(selectedFile);
-    setError(null);
-    setQuotes([]);
-    
-    if (selectedFile.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => setPreview(e.target.result);
-      reader.readAsDataURL(selectedFile);
-    } else {
-      setPreview(null);
-    }
-  };
+  }, []);
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    const droppedFile = e.dataTransfer.files[0];
-    handleFileSelect(droppedFile);
-  };
-
-  const generateQuotes = async () => {
-    if (!file) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result;
-          const base64Data = result.split(',')[1];
-          resolve(base64Data);
-        };
-        reader.onerror = () => reject(new Error('檔案讀取失敗'));
-        reader.readAsDataURL(file);
-      });
-
-      if (!base64) {
-        throw new Error('無法讀取檔案內容');
-      }
-      
-      const response = await fetch('/.netlify/functions/generate-quotes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageData: base64,
-          mimeType: file.type
-        })
-      });
-      
-      const text = await response.text();
-      
-      if (!text) {
-        throw new Error('伺服器沒有回應');
-      }
-      
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('Response was:', text);
-        throw new Error('伺服器回應格式錯誤');
-      }
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      if (!data.quotes || data.quotes.length === 0) {
-        throw new Error('沒有產生任何金句');
-      }
-      
-      setQuotes(data.quotes);
-      
-    } catch (err) {
-      console.error('Generate error:', err);
-      setError(err.message || '生成失敗，請稍後再試');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const downloadCard = (index) => {
-    const quote = quotes[index];
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    canvas.width = 1080;
-    canvas.height = 1080;
-    
-    // 品牌色系金句卡片
-    const gradients = [
-      ['#2d5a3d', '#1a3d2a'], // 深綠
-      ['#5a4d2d', '#3d3320'], // 深金
-      ['#3d5a4d', '#2a3d35'], // 藍綠
-      ['#4d5a2d', '#353d20'], // 橄欖綠
-      ['#5a3d2d', '#3d2820'], // 棕金
-      ['#2d4a5a', '#1a3540'], // 墨綠藍
-    ];
-    
-    const colors = gradients[index % gradients.length];
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, colors[0]);
-    gradient.addColorStop(1, colors[1]);
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // 裝飾圓形
-    ctx.fillStyle = 'rgba(212, 175, 55, 0.08)';
-    ctx.beginPath();
-    ctx.arc(canvas.width * 0.85, canvas.height * 0.15, 250, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.fillStyle = 'rgba(245, 240, 230, 0.05)';
-    ctx.beginPath();
-    ctx.arc(canvas.width * 0.1, canvas.height * 0.9, 200, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // 引號
-    ctx.font = '240px "Noto Serif TC", Georgia, serif';
-    ctx.fillStyle = 'rgba(212, 175, 55, 0.15)';
-    ctx.fillText('"', 60, 220);
-    
-    // 金句文字
-    ctx.font = '52px "Noto Serif TC", serif';
-    ctx.fillStyle = '#f5f0e6';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    
-    const maxWidth = canvas.width - 160;
-    const lineHeight = 78;
-    const chars = quote.split('');
-    let line = '';
-    let y = 320;
-    
-    for (let i = 0; i < chars.length; i++) {
-      const testLine = line + chars[i];
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxWidth && i > 0) {
-        ctx.fillText(line, 80, y);
-        line = chars[i];
-        y += lineHeight;
-      } else {
-        line = testLine;
-      }
-    }
-    ctx.fillText(line, 80, y);
-    
-    // 浮水印
-    ctx.font = '28px "Noto Sans TC", sans-serif';
-    ctx.fillStyle = 'rgba(212, 175, 55, 0.6)';
-    ctx.textAlign = 'right';
-    ctx.fillText('陳沛孺', canvas.width - 80, canvas.height - 80);
-    
-    const link = document.createElement('a');
-    link.download = `課程金句_${index + 1}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
+  const activeWorkflow = workflows.find(w => w.id === activeWf);
 
   return (
     <div className="app">
-      {/* 背景裝飾 */}
-      <div className="bg-shapes">
-        <div className="shape shape-1"></div>
-        <div className="shape shape-2"></div>
-        <div className="shape shape-3"></div>
-      </div>
-      
-      {/* 隱藏的 Canvas */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
-      
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="hero-content">
-          <div className="hero-badge">AI 小工具</div>
-          <h1>課程金句<br/>產生器</h1>
-          <p className="hero-desc">
-            上傳你的簡報，讓 AI 幫你提煉出<br/>
-            讓學員一秒記住的課程金句
-          </p>
-          <button className="hero-cta" onClick={scrollToUpload}>
-            立即試用
-          </button>
-        </div>
-        <div className="hero-visual">
-          <div className="card-stack">
-            <div className="demo-card demo-card-1">"學會這個，省下三年摸索"</div>
-            <div className="demo-card demo-card-2">"真正的效率是不做白工"</div>
-            <div className="demo-card demo-card-3">"知道方法的人，不怕起步晚"</div>
+      <Hero />
+      <ToolsOverview />
+
+      {/* 工作流程評測區 */}
+      <section className="workflows-section" id="workflows">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-label">Workflows</span>
+            <h2 className="section-title">14 個工作流程評測</h2>
+            <p className="section-desc">點選工作流程，查看各 AI 工具的表現</p>
           </div>
         </div>
-      </section>
 
-      {/* How it works */}
-      <section className="how-it-works">
+        <WorkflowNav activeId={activeWf} onSelect={handleWfSelect} />
+
         <div className="container">
-          <h2>怎麼使用？</h2>
-          <div className="steps-grid">
-            <StepCard 
-              number="1"
-              title="上傳簡報"
-              description="把你的課程簡報截圖或存成 PDF 上傳"
-            />
-            <StepCard 
-              number="2"
-              title="等 AI 分析"
-              description="Gemini 會讀懂你的內容，抓出核心價值"
-            />
-            <StepCard 
-              number="3"
-              title="下載金句圖"
-              description="一鍵下載，直接發到社群或放進簡報"
+          <div
+            ref={el => { sectionRefs.current[activeWf] = el; }}
+            data-section={activeWf}
+          >
+            <WorkflowSection
+              workflow={activeWorkflow}
+              isVisible={true}
             />
           </div>
         </div>
       </section>
 
-      {/* Upload Section */}
-      <section className="upload-section" ref={uploadRef}>
-        <div className="container">
-          <div className="upload-card">
-            <h2>上傳你的簡報</h2>
-            <p className="upload-subtitle">支援 PNG、JPG、PDF</p>
-            
-            <div
-              className={`upload-zone ${dragOver ? 'drag-over' : ''} ${file ? 'has-file' : ''}`}
-              onClick={() => fileInputRef.current?.click()}
-              onDrop={handleDrop}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".png,.jpg,.jpeg,.webp,.pdf"
-                onChange={(e) => handleFileSelect(e.target.files[0])}
-                style={{ display: 'none' }}
-              />
-              
-              {preview ? (
-                <div className="preview">
-                  <img src={preview} alt="預覽" />
-                  <p className="file-name">{file.name}</p>
-                  <p className="change-hint">點擊更換</p>
-                </div>
-              ) : file ? (
-                <div className="preview">
-                  <div className="pdf-badge">PDF</div>
-                  <p className="file-name">{file.name}</p>
-                  <p className="change-hint">點擊更換</p>
-                </div>
-              ) : (
-                <div className="upload-placeholder">
-                  <div className="upload-circle">
-                    <span className="upload-plus">+</span>
-                  </div>
-                  <p className="upload-text">拖曳或點擊上傳</p>
-                </div>
-              )}
-            </div>
-
-            {file && (
-              <button
-                className={`generate-btn ${loading ? 'loading' : ''}`}
-                onClick={generateQuotes}
-                disabled={loading}
-              >
-                {loading ? '分析中...' : '產生金句'}
-              </button>
-            )}
-
-            {error && (
-              <div className="error-message">{error}</div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Results Section */}
-      {quotes.length > 0 && (
-        <section className="results-section">
-          <div className="container">
-            <h2>你的課程金句</h2>
-            <p className="results-subtitle">點擊卡片下載 1080×1080 圖片</p>
-            <div className="quotes-grid">
-              {quotes.map((quote, index) => (
-                <QuoteCard 
-                  key={index} 
-                  quote={quote} 
-                  index={index}
-                  onDownload={downloadCard}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* CTA Section */}
-      <section className="cta-section">
-        <div className="container">
-          <div className="cta-card">
-            <div className="cta-avatar">沛</div>
-            <h2>這個工具是誰做的？</h2>
-            <p>我是陳沛孺，專門教 40-55 歲專業人士<br/>用 AI 打造個人品牌與自動化系統</p>
-            <a
-              href="https://www.facebook.com/peiru1985"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cta-btn"
-            >
-              追蹤陳沛孺
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="footer">
-        <p>© 2025 陳沛孺 / 閱讀塗鴉實驗室</p>
-      </footer>
+      <ComparisonMatrix />
+      <Conclusion />
+      <Footer />
     </div>
   );
 }
